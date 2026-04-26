@@ -78,7 +78,7 @@ function createObstacles() {
 
     let speed = 0.026;
     let speed2 = -0.034;
-    let barSpeed = 0.040;
+    let barSpeed = 0.030;
 
     if (type === "circle") {
       speed = 0.026 * randomDirection();
