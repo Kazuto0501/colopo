@@ -16,6 +16,10 @@ resize();
 
 const COLORS = ["#ff008c", "#00d9ff", "#ffe600", "#8a00ff"];
 
+// 画面全体を少し引きで表示する倍率
+// 0.92 = 少し引き、0.90 = もっと引き、0.95 = 控えめ
+const VIEW_ZOOM = 0.92;
+
 let state = "ready";
 let score = 0;
 let bestScore = Number(localStorage.getItem("colopeeBest") || 0);
@@ -86,7 +90,7 @@ function createObstacles() {
       speed2 = -0.036;
     }
 
-    // 十字：反時計回り。前より少し速め
+    // 十字：反時計回り。少し速め
     if (type === "cross") {
       speed = -0.026;
     }
@@ -162,14 +166,17 @@ function update() {
     checkColorChanger(obs);
   }
 
-  if (ball.y - cameraY > H + 80) {
+  // VIEW_ZOOM込みで、画面下に落ちた判定を調整
+  const ballScreenY = H / 2 + VIEW_ZOOM * ((ball.y - cameraY) - H / 2);
+
+  if (ballScreenY > H + 80) {
     gameOver();
   }
 }
 
 function getBarX(obs) {
-  // 棒は長く、動き幅は少し抑えめ
-  return W * 0.5 + Math.sin(obs.barPhase) * W * 0.32;
+  // 棒は長く、動き幅も広め
+  return W * 0.5 + Math.sin(obs.barPhase) * W * 0.48;
 }
 
 function getCrossCenter(obs) {
@@ -235,8 +242,8 @@ function checkBarCollision(obs) {
   const barY = obs.y;
   const barH = 18;
 
-  // 棒を長めにする。4色合計で画面幅の約1.28倍
-  const segmentW = W * 0.32;
+  // 棒長め。4色合計で画面幅の約1.52倍
+  const segmentW = W * 0.38;
   const totalW = segmentW * 4;
   const barX = getBarX(obs);
   const startX = barX - totalW / 2;
@@ -369,6 +376,13 @@ function draw() {
   ctx.clearRect(0, 0, W, H);
 
   ctx.save();
+
+  // 画面全体を少し引きで表示
+  ctx.translate(W / 2, H / 2);
+  ctx.scale(VIEW_ZOOM, VIEW_ZOOM);
+  ctx.translate(-W / 2, -H / 2);
+
+  // カメラ移動
   ctx.translate(0, -cameraY);
 
   for (const obs of obstacles) {
@@ -432,8 +446,8 @@ function drawCircle(obs, radius, thickness, rotation) {
 function drawBar(obs) {
   const barH = 18;
 
-  // 棒を長めにする。4色合計で画面幅の約1.28倍
-  const segmentW = W * 0.32;
+  // 棒長め。4色合計で画面幅の約1.52倍
+  const segmentW = W * 0.38;
   const totalW = segmentW * 4;
   const barX = getBarX(obs);
   const startX = barX - totalW / 2;
