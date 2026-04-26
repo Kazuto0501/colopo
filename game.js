@@ -18,7 +18,7 @@ const COLORS = ["#ff008c", "#00d9ff", "#ffe600", "#8a00ff"];
 
 let state = "ready";
 let score = 0;
-let bestScore = Number(localStorage.getItem("coloroBest") || 0);
+let bestScore = Number(localStorage.getItem("colopeeBest") || 0);
 
 let ball;
 let obstacles = [];
@@ -53,7 +53,7 @@ function resetGame() {
 
   scoreEl.textContent = score;
   scoreEl.style.display = "block";
-  messageEl.textContent = "TAP TO JUMP";
+  messageEl.textContent = "";
 }
 
 function createObstacles() {
@@ -86,8 +86,9 @@ function createObstacles() {
       speed2 = -0.036;
     }
 
+    // 十字：反時計回り。前より少し速め
     if (type === "cross") {
-      speed = -0.020;
+      speed = -0.026;
     }
 
     obstacles.push({
@@ -167,7 +168,8 @@ function update() {
 }
 
 function getBarX(obs) {
-  return W * 0.5 + Math.sin(obs.barPhase) * W * 0.40;
+  // 棒は長く、動き幅は少し抑えめ
+  return W * 0.5 + Math.sin(obs.barPhase) * W * 0.32;
 }
 
 function getCrossCenter(obs) {
@@ -233,7 +235,8 @@ function checkBarCollision(obs) {
   const barY = obs.y;
   const barH = 18;
 
-  const segmentW = W * 0.25;
+  // 棒を長めにする。4色合計で画面幅の約1.28倍
+  const segmentW = W * 0.32;
   const totalW = segmentW * 4;
   const barX = getBarX(obs);
   const startX = barX - totalW / 2;
@@ -355,7 +358,7 @@ function gameOver() {
 
   if (score > bestScore) {
     bestScore = score;
-    localStorage.setItem("coloroBest", bestScore);
+    localStorage.setItem("colopeeBest", bestScore);
   }
 
   scoreEl.style.display = "none";
@@ -429,7 +432,8 @@ function drawCircle(obs, radius, thickness, rotation) {
 function drawBar(obs) {
   const barH = 18;
 
-  const segmentW = W * 0.25;
+  // 棒を長めにする。4色合計で画面幅の約1.28倍
+  const segmentW = W * 0.32;
   const totalW = segmentW * 4;
   const barX = getBarX(obs);
   const startX = barX - totalW / 2;
@@ -540,15 +544,15 @@ function drawStartText() {
   ctx.fillStyle = "white";
   ctx.textAlign = "center";
 
-  ctx.font = "72px Arial";
-  ctx.fillText("COLORO", W / 2, H * 0.35);
+  ctx.font = "68px Arial";
+  ctx.fillText("COLOPEE", W / 2, H * 0.35);
 
-  ctx.font = "34px Arial";
-  ctx.fillText("TAP TO JUMP", W / 2, H * 0.50);
+  ctx.font = "32px Arial";
+  ctx.fillText("TAP TO START", W / 2, H * 0.50);
 
   ctx.font = "22px Arial";
   ctx.fillStyle = "rgba(255,255,255,0.75)";
-  ctx.fillText("PASS THROUGH MATCHING COLOR", W / 2, H * 0.57);
+  ctx.fillText("MATCH THE COLOR", W / 2, H * 0.57);
 }
 
 function loop() {
