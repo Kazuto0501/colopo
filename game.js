@@ -130,7 +130,7 @@ function createObstacles() {
 
     let speed = 0.026;
     let speed2 = -0.034;
-    let barSpeed = 0.040;
+    let barSpeed = 0.030;
 
     if (type === "circle") {
       speed = 0.026 * randomDirection();
@@ -231,7 +231,7 @@ function update() {
 /* ===== Obstacle Helpers ===== */
 
 function getBarX(obs) {
-  return W * 0.5 + Math.sin(obs.barPhase) * W * 0.72;
+  return W * 0.5 + Math.sin(obs.barPhase) * W * 0.64;
 }
 
 function getCrossCenter(obs) {
@@ -619,7 +619,7 @@ function drawBestBadge() {
   if (bestScore <= 0) return;
   if (!obstacles[bestScore - 1]) return;
 
-  const y = obstacles[bestScore - 1].y - 120;
+  const y = obstacles[bestScore - 1].y - 210;
 
   ctx.save();
   ctx.textAlign = "center";
