@@ -14,20 +14,24 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-const COLORS = ["#ff008c", "#00d9ff", "#ffe600", "#8a00ff"];
+// Colopo用の配色
+const COLORS = ["#FF4D6D", "#2EC4B6", "#FFBE0B", "#8338EC"];
 
 // かなり引きで表示
 const VIEW_ZOOM = 0.70;
 
 let state = "ready";
 let score = 0;
-let bestScore = Number(localStorage.getItem("colopeeBest") || 0);
+let bestScore = Number(localStorage.getItem("colopoBest") || 0);
 
 let ball;
 let obstacles = [];
 let cameraY = 0;
 let targetCameraY = 0;
-let gameOverColor = "#00d9ff";
+let gameOverColor = "#2EC4B6";
+
+let shakeFrames = 0;
+let audioCtx = null;
 
 function randomColor() {
   return COLORS[Math.floor(Math.random() * COLORS.length)];
@@ -37,12 +41,60 @@ function randomDirection() {
   return Math.random() < 0.5 ? -1 : 1;
 }
 
+/* ===== Sound Effects ===== */
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+}
+
+function playTone(freq, duration, type = "sine", volume = 0.05) {
+  if (!audioCtx) return;
+
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  osc.type = type;
+  osc.frequency.value = freq;
+
+  gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(
+    0.001,
+    audioCtx.currentTime + duration
+  );
+
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function playTapSound() {
+  playTone(520, 0.045, "sine", 0.04);
+}
+
+function playPointSound() {
+  playTone(880, 0.06, "sine", 0.055);
+  setTimeout(() => {
+    playTone(1240, 0.07, "sine", 0.045);
+  }, 45);
+}
+
+/* ===== Game Setup ===== */
+
 function resetGame() {
   state = "ready";
   score = 0;
   cameraY = 0;
   targetCameraY = 0;
-  gameOverColor = "#00d9ff";
+  shakeFrames = 0;
+  gameOverColor = "#2EC4B6";
 
   ball = {
     x: W / 2,
@@ -78,7 +130,7 @@ function createObstacles() {
 
     let speed = 0.026;
     let speed2 = -0.034;
-    let barSpeed = 0.030;
+    let barSpeed = 0.040;
 
     if (type === "circle") {
       speed = 0.026 * randomDirection();
@@ -101,10 +153,8 @@ function createObstacles() {
       rotation2: Math.random() * Math.PI * 2,
       speed,
       speed2,
-
       barPhase: Math.random() * Math.PI * 2,
       barSpeed,
-
       pointTaken: false,
       colorChangerTaken: false
     });
@@ -113,15 +163,20 @@ function createObstacles() {
 
 resetGame();
 
+/* ===== Controls ===== */
+
 function tap() {
+  initAudio();
+
   if (state === "ready") {
     state = "playing";
     messageEl.textContent = "";
-  }
-
-  if (state === "gameover") {
+    playTapSound();
+  } else if (state === "gameover") {
     resetGame();
     return;
+  } else if (state === "playing") {
+    playTapSound();
   }
 
   if (state === "playing") {
@@ -138,6 +193,8 @@ window.addEventListener(
   },
   { passive: false }
 );
+
+/* ===== Update ===== */
 
 function update() {
   if (state !== "playing") return;
@@ -171,8 +228,9 @@ function update() {
   }
 }
 
+/* ===== Obstacle Helpers ===== */
+
 function getBarX(obs) {
-  // 棒の可動域をかなり広くする
   return W * 0.5 + Math.sin(obs.barPhase) * W * 0.72;
 }
 
@@ -187,6 +245,8 @@ function getCrossArmLength(obs) {
   const center = getCrossCenter(obs);
   return W / 2 - center.x + 28;
 }
+
+/* ===== Collision ===== */
 
 function checkObstacleCollision(obs) {
   if (obs.type === "circle") {
@@ -305,6 +365,7 @@ function checkPointItem(obs) {
     obs.pointTaken = true;
     score++;
     scoreEl.textContent = score;
+    playPointSound();
   }
 }
 
@@ -356,28 +417,44 @@ function checkColorChanger(obs) {
 }
 
 function gameOver() {
+  if (state === "gameover") return;
+
   state = "gameover";
   gameOverColor = ball.color;
+  shakeFrames = 14;
 
   if (score > bestScore) {
     bestScore = score;
-    localStorage.setItem("colopeeBest", bestScore);
+    localStorage.setItem("colopoBest", bestScore);
   }
 
   scoreEl.style.display = "none";
   messageEl.textContent = "";
 }
 
+/* ===== Draw ===== */
+
 function draw() {
   ctx.clearRect(0, 0, W, H);
 
   ctx.save();
+
+  if (shakeFrames > 0) {
+    const shake = shakeFrames * 0.7;
+    ctx.translate(
+      (Math.random() - 0.5) * shake,
+      (Math.random() - 0.5) * shake
+    );
+    shakeFrames--;
+  }
 
   ctx.translate(W / 2, H / 2);
   ctx.scale(VIEW_ZOOM, VIEW_ZOOM);
   ctx.translate(-W / 2, -H / 2);
 
   ctx.translate(0, -cameraY);
+
+  drawBestBadge();
 
   for (const obs of obstacles) {
     drawObstacle(obs);
@@ -481,20 +558,35 @@ function drawPointItem(obs) {
   ctx.save();
   ctx.translate(item.x, item.y);
 
-  ctx.fillStyle = "white";
   ctx.beginPath();
-  ctx.moveTo(0, -22);
-  ctx.lineTo(7, -6);
-  ctx.lineTo(24, 0);
-  ctx.lineTo(7, 6);
-  ctx.lineTo(0, 22);
-  ctx.lineTo(-7, 6);
-  ctx.lineTo(-24, 0);
-  ctx.lineTo(-7, -6);
-  ctx.closePath();
+  ctx.arc(0, 0, 24, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255,255,255,0.12)";
   ctx.fill();
 
+  drawStar(0, 0, 5, 9, 21, "white");
+
   ctx.restore();
+}
+
+function drawStar(x, y, points, innerRadius, outerRadius, color) {
+  ctx.beginPath();
+
+  for (let i = 0; i < points * 2; i++) {
+    const angle = -Math.PI / 2 + (i * Math.PI) / points;
+    const radius = i % 2 === 0 ? outerRadius : innerRadius;
+    const px = x + Math.cos(angle) * radius;
+    const py = y + Math.sin(angle) * radius;
+
+    if (i === 0) {
+      ctx.moveTo(px, py);
+    } else {
+      ctx.lineTo(px, py);
+    }
+  }
+
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
 }
 
 function drawColorChanger(obs) {
@@ -523,26 +615,60 @@ function drawColorChanger(obs) {
   ctx.stroke();
 }
 
+function drawBestBadge() {
+  if (bestScore <= 0) return;
+  if (!obstacles[bestScore - 1]) return;
+
+  const y = obstacles[bestScore - 1].y - 120;
+
+  ctx.save();
+  ctx.textAlign = "center";
+
+  ctx.fillStyle = "rgba(255,255,255,0.14)";
+  roundRect(W / 2 - 68, y - 28, 136, 38, 18);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.font = "18px Arial";
+  ctx.fillText("★ BEST " + bestScore, W / 2, y - 3);
+
+  ctx.restore();
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
 function drawGameOverScreen() {
-  ctx.fillStyle = "rgba(0,0,0,0.68)";
+  ctx.fillStyle = "rgba(0,0,0,0.66)";
   ctx.fillRect(0, 0, W, H);
 
   ctx.fillStyle = "white";
   ctx.textAlign = "center";
-  ctx.font = "52px Arial";
-  ctx.fillText("SCORE", W / 2, H * 0.42);
+  ctx.font = "44px Arial";
+  ctx.fillText("RUN ENDED", W / 2, H * 0.38);
 
   ctx.fillStyle = gameOverColor;
-  ctx.font = "120px Arial";
-  ctx.fillText(score, W / 2, H * 0.55);
+  ctx.font = "112px Arial";
+  ctx.fillText(score, W / 2, H * 0.53);
 
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.font = "36px Arial";
-  ctx.fillText("TAP TO RESTART", W / 2, H * 0.69);
+  ctx.fillStyle = "rgba(255,255,255,0.82)";
+  ctx.font = "24px Arial";
+  ctx.fillText("BEST " + bestScore, W / 2, H * 0.60);
 
-  ctx.fillStyle = "rgba(255,255,255,0.45)";
-  ctx.font = "20px Arial";
-  ctx.fillText("BEST " + bestScore, W / 2, H * 0.75);
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.font = "30px Arial";
+  ctx.fillText("TAP TO RISE AGAIN", W / 2, H * 0.72);
 }
 
 function drawStartText() {
@@ -551,7 +677,7 @@ function drawStartText() {
   ctx.fillStyle = "white";
   ctx.textAlign = "center";
 
-  ctx.font = "68px Arial";
+  ctx.font = "72px Arial";
   ctx.fillText("COLOPO", W / 2, H * 0.35);
 
   ctx.font = "32px Arial";
@@ -559,7 +685,7 @@ function drawStartText() {
 
   ctx.font = "22px Arial";
   ctx.fillStyle = "rgba(255,255,255,0.75)";
-  ctx.fillText("MATCH THE COLOR", W / 2, H * 0.57);
+  ctx.fillText("FOLLOW YOUR COLOR", W / 2, H * 0.57);
 }
 
 function loop() {
